@@ -5,6 +5,7 @@ from keras.callbacks import ModelCheckpoint
 import numpy as np
 from itertools import chain
 from collections import defaultdict
+import argparse
 
 
 # reference: http://adventuresinmachinelearning.com/keras-lstm-tutorial/
@@ -111,6 +112,13 @@ class DataWithLabelGenerator:
         self.step_size = step_size
         self.batch_size = batch_size
         self.vocabulary_size = vocabulary_size
+        stride_size = self.batch_size * self.step_size
+
+        # if len(self.data) % stride_size == 0:
+        #     raise NotImplementedError("This case hasn't been implemented yet")
+        # else:
+        #     print(len(self.data) % self.step_size)
+        #     print(len(self.data) % self.batch_size)
 
     def generate(self):
         """
@@ -129,16 +137,23 @@ class DataWithLabelGenerator:
         # TODO: implement shuffling.
 
         stride_size = self.batch_size * self.step_size
+        len_data = len(self.data)
 
         while True:
-            x = self.data[position:position+stride_size]
-            y = self.data[position+1:position+1+stride_size]
-            # TODO: this +1 is a bug, if len(data) is divisible by stride_size
+            if position+stride_size+1 >= len(self.data):
+                len_data_m = len_data - 1
+                end = len_data_m - (len_data_m % self.step_size)
 
-            position += stride_size
+            else:
+                end = position+stride_size
+                
+            x = self.data[position:end]
+            y = self.data[position+1:end+1]
 
-            x = np.array(x).reshape(self.batch_size, self.step_size)
-            y = np.array(y).reshape(self.batch_size, self.step_size)
+            position = end
+
+            x = np.array(x).reshape(-1, self.step_size)
+            y = np.array(y).reshape(-1, self.step_size)
             y = to_1_hot(y, self.vocabulary_size)
 
             yield x, y
@@ -161,7 +176,7 @@ def run_test():
 
 
 
-def main():
+def main(debug=False):
     data_dir = "./data/ptb/data/"
     path_train = data_dir + "ptb.train.txt"
     path_valid = data_dir + "ptb.valid.txt"
@@ -172,6 +187,9 @@ def main():
 
     valid_data = ids_from_ptb(path_valid, id_from_word, eos=True)
 
+    if debug:
+        train_data = train_data[:len(train_data)//100]
+
     train_data_size = len(train_data)
     valid_data_size = len(valid_data)
     vocabulary_size = len(id_from_word)
@@ -181,8 +199,14 @@ def main():
     num_epochs = 1
     step_size = 5
 
+    # print(train_data_size)
+    # print(valid_data_size)
+
     steps_per_epoch = train_data_size // (batch_size * step_size)
+    # print(steps_per_epoch)
     valid_steps_per_epoch = valid_data_size // (batch_size * step_size)
+    # print(valid_steps_per_epoch)
+
     train_data_generator = DataWithLabelGenerator(train_data, step_size,
                                                   batch_size, vocabulary_size)
     valid_data_generator = DataWithLabelGenerator(valid_data, step_size,
@@ -192,5 +216,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="LSTM for the Penn Tree Bank"
+                                                 "dataset")
+    parser.add_argument("--debug", help="Run in 'debug' mode, i.e. with only"
+                                        "1/100th of the training data", 
+                        action="store_true")
+    args = parser.parse_args()
+    main(args.debug)
 

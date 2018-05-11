@@ -4,3 +4,5 @@ isoenv/
 *.tgz
 data/
 *.swp
+*.hdf5
+
