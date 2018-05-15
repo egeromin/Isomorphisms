@@ -50,26 +50,18 @@ class SimpleRNNCell:
         self.state_activation = tf.tanh  # hardcode tanh
 
     def call(self, input_at_t, states_at_t):
-        print(input_at_t.shape)
-        print(tf.shape(states_at_t))
         state = states_at_t[0]
-        # print(states_at_t.shape)
-        # a = tf.matmul(input_at_t, self.U) + \
-        #     tf.matmul(state, self.W) + self.b
-        a = input_at_t * self.U + state * self.W + self.b
+        a = tf.matmul(input_at_t, self.U) + tf.matmul(state, self.W) +  self.b
         next_state = self.state_activation(a)
-        # output_at_t = tf.matmul(next_state, self.V) + self.c
-        output_at_t = next_state * self.V + self.c
+        output_at_t = tf.matmul(next_state, self.V) + self.c
         return (output_at_t, [next_state])
 
 
 def make_model(vocabulary_size, hidden_size, num_steps, use_dropout=True):
     model = Sequential()
     model.add(Embedding(vocabulary_size, hidden_size, input_length=num_steps))
-#     model.add(LSTM(hidden_size, return_sequences=True))
-#     model.add(LSTM(hidden_size, return_sequences=True))
-    # model.add(RNN(SimpleRNNCell(hidden_size, hidden_size, hidden_size)))
-    model.add(SimpleRNN(hidden_size, return_sequences=True))
+    model.add(RNN(SimpleRNNCell(hidden_size, hidden_size, hidden_size), return_sequences=True))
+    # model.add(SimpleRNN(hidden_size, return_sequences=True))
     if use_dropout:
         model.add(Dropout(0.5))
     model.add(TimeDistributed(Dense(vocabulary_size)))
