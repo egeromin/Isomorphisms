@@ -194,8 +194,11 @@ class DataWithLabelGenerator:
         stride_size = self.batch_size * self.step_size
         len_data = len(self.data)
 
+        len_data = len_data - (len_data % self.step_size)
+        self.data = self.data[:len_data]
+
         while True:
-            if position+1 >= len(self.data):
+            if position >= len(self.data) - self.step_size:
                 position = 0  # reset the training data if I'm at the end. 
 
             if position+stride_size+1 >= len(self.data):
