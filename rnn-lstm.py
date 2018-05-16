@@ -270,7 +270,8 @@ def main(debug=False, lstm=False, num_epochs=1):
                                                   batch_size, vocabulary_size)
     model = make_model(vocabulary_size, hidden_size, step_size,
                        use_dropout=True, lstm=lstm)
-    run_training(model, train_data_generator, steps_per_epoch, num_epochs, valid_steps_per_epoch, valid_data_generator)
+    run_training(model, train_data_generator, steps_per_epoch, num_epochs,
+                 valid_steps_per_epoch, valid_data_generator, lstm)
 
 
 if __name__ == "__main__":
