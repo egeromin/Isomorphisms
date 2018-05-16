@@ -5,4 +5,5 @@ isoenv/
 data/
 *.swp
 *.hdf5
-
+logs-rnn/
+logs-lstm/

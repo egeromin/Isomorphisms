@@ -1,6 +1,7 @@
 from keras.models import Sequential
 from keras.layers import Embedding, SimpleRNN, RNN, LSTM, TimeDistributed, Activation, Dropout, Dense
 from keras.callbacks import ModelCheckpoint
+import keras
 
 import tensorflow as tf
 
@@ -222,12 +223,19 @@ def run_training(model, train_data_generator, steps_per_epoch, num_epochs,
     else:
         checkpointer = ModelCheckpoint(filepath=checkpoints_path +
                                        '/model-simplernn-{epoch:02d}.hdf5', verbose=1)
+
+    if lstm:
+        tensorboard_logs = "./logs-lstm"
+    else:
+        tensorboard_logs = "./logs-rnn"
+
+    tboard = keras.callbacks.TensorBoard(log_dir=tensorboard_logs)
     model.fit_generator(train_data_generator.generate(), 
                         # len(train_data)//(batch_size*num_steps), num_epochs,
                         steps_per_epoch, num_epochs,
                         validation_data=valid_data_generator.generate(),
                         validation_steps=valid_steps_per_epoch,
-                        callbacks=[checkpointer])
+                        callbacks=[checkpointer, tboard])
 
 def run_test():
     pass
