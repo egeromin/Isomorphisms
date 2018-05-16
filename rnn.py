@@ -56,6 +56,9 @@ class SimpleRNNCell:
         output_at_t = tf.matmul(next_state, self.V) + self.c
         return (output_at_t, [next_state])
 
+    def get_config(self):
+        return {}
+
 
 def make_model(vocabulary_size, hidden_size, num_steps, use_dropout=True):
     model = Sequential()
