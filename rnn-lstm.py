@@ -218,14 +218,18 @@ class DataWithLabelGenerator:
 
 
 def run_training(model, train_data_generator, steps_per_epoch, num_epochs,
-                 valid_steps_per_epoch, valid_data_generator, lstm=False):
+                 valid_steps_per_epoch, valid_data_generator, lstm=False,
+                 no_checkpoints=False):
     checkpoints_path = "./checkpoints"
-    if lstm:
-        checkpointer = ModelCheckpoint(filepath=checkpoints_path +
-                                       '/model-lstm-{epoch:02d}.hdf5', verbose=1)
-    else:
-        checkpointer = ModelCheckpoint(filepath=checkpoints_path +
-                                       '/model-simplernn-{epoch:02d}.hdf5', verbose=1)
+    callbacks=[]
+    if not no_checkpoints:
+        if lstm:
+            checkpointer = ModelCheckpoint(filepath=checkpoints_path +
+                                           '/model-lstm-{epoch:02d}.hdf5', verbose=1)
+        else:
+            checkpointer = ModelCheckpoint(filepath=checkpoints_path +
+                                           '/model-simplernn-{epoch:02d}.hdf5', verbose=1)
+        callbacks.append(checkpointer)
 
     if lstm:
         tensorboard_logs = "./logs-lstm"
@@ -233,12 +237,13 @@ def run_training(model, train_data_generator, steps_per_epoch, num_epochs,
         tensorboard_logs = "./logs-rnn"
 
     tboard = keras.callbacks.TensorBoard(log_dir=tensorboard_logs)
+    callbacks.append(tboard)
     model.fit_generator(train_data_generator.generate(), 
                         # len(train_data)//(batch_size*num_steps), num_epochs,
                         steps_per_epoch, num_epochs,
                         validation_data=valid_data_generator.generate(),
                         validation_steps=valid_steps_per_epoch,
-                        callbacks=[checkpointer, tboard])
+                        callbacks=callbacks)
 
 def run_test():
     pass
@@ -246,7 +251,7 @@ def run_test():
 
 
 def main(debug=False, lstm=False, num_epochs=1, steps_per_epoch=None,
-         valid_steps_per_epoch=None):
+         valid_steps_per_epoch=None, no_checkpoints=False):
     data_dir = "./data/ptb/data/"
     path_train = data_dir + "ptb.train.txt"
     path_valid = data_dir + "ptb.valid.txt"
@@ -284,7 +289,8 @@ def main(debug=False, lstm=False, num_epochs=1, steps_per_epoch=None,
     model = make_model(vocabulary_size, hidden_size, step_size,
                        use_dropout=True, lstm=lstm)
     run_training(model, train_data_generator, steps_per_epoch, num_epochs,
-                 valid_steps_per_epoch, valid_data_generator, lstm)
+                 valid_steps_per_epoch, valid_data_generator, lstm,
+                 no_checkpoints=no_checkpoints)
 
 
 if __name__ == "__main__":
@@ -300,8 +306,12 @@ if __name__ == "__main__":
                         type=int)
     parser.add_argument("--steps", help="Training steps per epoch",
                         type=int)
+    parser.add_argument("--no_checkpoints", help="Ignore checkpoints",
+                        action='store_true')
     args = parser.parse_args()
     main(args.debug, lstm=args.lstm, num_epochs=args.num_epochs,
-         steps_per_epoch=args.steps, valid_steps_per_epoch=args.vsteps)
+         steps_per_epoch=args.steps, valid_steps_per_epoch=args.vsteps,
+         no_checkpoints=args.no_checkpoints)
+         
 
 
