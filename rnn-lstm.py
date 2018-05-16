@@ -214,10 +214,14 @@ class DataWithLabelGenerator:
 
 
 def run_training(model, train_data_generator, steps_per_epoch, num_epochs,
-                 valid_steps_per_epoch, valid_data_generator):
+                 valid_steps_per_epoch, valid_data_generator, lstm=False):
     checkpoints_path = "./checkpoints"
-    checkpointer = ModelCheckpoint(filepath=checkpoints_path +
-                                   '/model-simplernn-{epoch:02d}.hdf5', verbose=1)
+    if lstm:
+        checkpointer = ModelCheckpoint(filepath=checkpoints_path +
+                                       '/model-lstm-{epoch:02d}.hdf5', verbose=1)
+    else:
+        checkpointer = ModelCheckpoint(filepath=checkpoints_path +
+                                       '/model-simplernn-{epoch:02d}.hdf5', verbose=1)
     model.fit_generator(train_data_generator.generate(), 
                         # len(train_data)//(batch_size*num_steps), num_epochs,
                         steps_per_epoch, num_epochs,
