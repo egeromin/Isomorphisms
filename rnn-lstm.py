@@ -195,6 +195,9 @@ class DataWithLabelGenerator:
         len_data = len(self.data)
 
         while True:
+            if position+1 >= len(self.data):
+                position = 0  # reset the training data if I'm at the end. 
+
             if position+stride_size+1 >= len(self.data):
                 len_data_m = len_data - 1
                 end = len_data_m - (len_data_m % self.step_size)
@@ -242,7 +245,8 @@ def run_test():
 
 
 
-def main(debug=False, lstm=False, num_epochs=1):
+def main(debug=False, lstm=False, num_epochs=1, steps_per_epoch=None,
+         valid_steps_per_epoch=None):
     data_dir = "./data/ptb/data/"
     path_train = data_dir + "ptb.train.txt"
     path_valid = data_dir + "ptb.valid.txt"
@@ -267,10 +271,11 @@ def main(debug=False, lstm=False, num_epochs=1):
     # print(train_data_size)
     # print(valid_data_size)
 
-    steps_per_epoch = train_data_size // (batch_size * step_size)
-    # print(steps_per_epoch)
-    valid_steps_per_epoch = valid_data_size // (batch_size * step_size)
-    # print(valid_steps_per_epoch)
+    if steps_per_epoch is None:
+        steps_per_epoch = train_data_size // (batch_size * step_size)
+    
+    if valid_steps_per_epoch is None:
+        valid_steps_per_epoch = valid_data_size // (batch_size * step_size)
 
     train_data_generator = DataWithLabelGenerator(train_data, step_size,
                                                   batch_size, vocabulary_size)
@@ -291,7 +296,12 @@ if __name__ == "__main__":
     parser.add_argument("--lstm", help="Use lstm?", action='store_true')
     parser.add_argument("--num_epochs", help="Number of training epochs",
                         type=int, default=1)
+    parser.add_argument("--vsteps", help="Validation steps per epoch",
+                        type=int)
+    parser.add_argument("--steps", help="Training steps per epoch",
+                        type=int)
     args = parser.parse_args()
-    main(args.debug, lstm=args.lstm, num_epochs=args.num_epochs)
+    main(args.debug, lstm=args.lstm, num_epochs=args.num_epochs,
+         steps_per_epoch=args.steps, valid_steps_per_epoch=args.vsteps)
 
 
