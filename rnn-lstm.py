@@ -2,6 +2,7 @@ from keras.models import Sequential
 from keras.layers import Embedding, SimpleRNN, RNN, LSTM, TimeDistributed, Activation, Dropout, Dense
 from keras.callbacks import ModelCheckpoint
 import keras
+import random
 
 import tensorflow as tf
 
@@ -248,13 +249,77 @@ def run_training(model, train_data_generator, steps_per_epoch, num_epochs,
                         validation_steps=valid_steps_per_epoch,
                         callbacks=callbacks)
 
-def run_test():
-    pass
 
+def make_prediction(model, seed_sentences, word_from_id, seq_length=10):
+
+    num_sentences, seed_sentence_length = seed_sentences.shape
+    assert(seq_length > seed_sentence_length)
+
+    predicted_sentence_indices = np.zeros((num_sentences, seq_length),
+                                          dtype=np.int32)
+
+    predicted_sentence_indices[:,:seed_sentence_length] = seed_sentences
+
+    for i in range(seq_length-seed_sentence_length-1):
+        words = predicted_sentence_indices[:,i:seed_sentence_length+i]
+        next_words = model.predict(words)  # output is 1-hot encoded
+        assert(len(next_words.shape) == 3)
+        assert(next_words.shape[0:2] == words.shape)
+
+        predicted_sentence_indices[:,seed_sentence_length+i+1] = \
+                next_words[:,-1,:].argmax(axis=-1)
+
+    # word ids to sentences
+    predicted_sentences = []
+    for i in range(predicted_sentence_indices.shape[0]):
+        predicted_sentences.append([])
+        for j in range(predicted_sentence_indices.shape[1]):
+            word_id = predicted_sentence_indices[i,j]
+            predicted_sentences[-1].append(word_from_id[word_id])
+
+    return predicted_sentences
+
+
+def load_model():
+    path_model = "./checkpoints/final.hdf5"
+    model = keras.models.load_model(path_model)
+    return model
+
+
+def random_predict(path_predict, step_size=5, seq_length=20):
+    data_dir = "./data/ptb/data/"
+    path_train = data_dir + "ptb.train.txt"
+    id_from_word, word_from_id, train_data = ids_and_index_from_ptb(path_train,
+                                                                    eos=True)
+    num_sentences = 10
+    seed_sentence_length = step_size
+
+    # pick `num_sentences` worth of start indexes and use those to 
+    # generate some seed sentences
+
+    start_indices = [random.randint(0, len(train_data)) 
+                     for _ in range(num_sentences)]
+    seed_sentences = np.zeros((num_sentences, seed_sentence_length),
+                              dtype=np.int32)
+    
+    for i in range(num_sentences):
+        words = [train_data[j+start_indices[i]]
+                 for j in range(seed_sentence_length)]
+        seed_sentences[i,:] = words
+
+    assert(seed_sentences.max() < max(id_from_word.values()))
+    model = load_model()
+
+    predicted_sentences = make_prediction(model, seed_sentences, word_from_id, seq_length)
+
+    with open(path_predict, "w") as fh:
+        for sentence in predicted_sentences:
+            fh.write(" ".join(sentence))
+            fh.write("\n")
 
 
 def main(debug=False, lstm=False, num_epochs=1, steps_per_epoch=None,
-         valid_steps_per_epoch=None, no_checkpoints=False):
+         valid_steps_per_epoch=None, no_checkpoints=False, step_size=5):
     data_dir = "./data/ptb/data/"
     path_train = data_dir + "ptb.train.txt"
     path_valid = data_dir + "ptb.valid.txt"
@@ -274,7 +339,6 @@ def main(debug=False, lstm=False, num_epochs=1, steps_per_epoch=None,
     hidden_size = 128
 
     batch_size = 32
-    step_size = 5
 
     # print(train_data_size)
     # print(valid_data_size)
@@ -291,9 +355,15 @@ def main(debug=False, lstm=False, num_epochs=1, steps_per_epoch=None,
                                                   batch_size, vocabulary_size)
     model = make_model(vocabulary_size, hidden_size, step_size,
                        use_dropout=True, lstm=lstm)
-    run_training(model, train_data_generator, steps_per_epoch, num_epochs,
-                 valid_steps_per_epoch, valid_data_generator, lstm,
-                 no_checkpoints=no_checkpoints)
+    try:
+        run_training(model, train_data_generator, steps_per_epoch, num_epochs,
+                     valid_steps_per_epoch, valid_data_generator, lstm,
+                     no_checkpoints=no_checkpoints)
+    except KeyboardInterrupt:
+        print("Ending prematurely")
+
+    path_final_model = "./checkpoints/final.hdf5"
+    model.save(path_final_model)
 
 
 if __name__ == "__main__":
@@ -311,10 +381,19 @@ if __name__ == "__main__":
                         type=int)
     parser.add_argument("--no_checkpoints", help="Ignore checkpoints",
                         action='store_true')
+
+    parser.add_argument("--pred", help="Make some random predictions")
+    parser.add_argument("--step_size", help="Step size for training and"
+                        "prediction", type=int, default=5)
+
     args = parser.parse_args()
-    main(args.debug, lstm=args.lstm, num_epochs=args.num_epochs,
-         steps_per_epoch=args.steps, valid_steps_per_epoch=args.vsteps,
-         no_checkpoints=args.no_checkpoints)
+
+    if args.pred:
+        random_predict(args.pred, step_size=args.step_size)
+    else:
+        main(args.debug, lstm=args.lstm, num_epochs=args.num_epochs,
+             steps_per_epoch=args.steps, valid_steps_per_epoch=args.vsteps,
+             no_checkpoints=args.no_checkpoints, step_size=args.step_size)
          
 
 
