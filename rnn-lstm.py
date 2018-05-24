@@ -260,14 +260,56 @@ def make_prediction(model, seed_sentences, word_from_id, seq_length=10):
 
     predicted_sentence_indices[:,:seed_sentence_length] = seed_sentences
 
-    for i in range(seq_length-seed_sentence_length-1):
+    for i in range(seq_length-seed_sentence_length):
         words = predicted_sentence_indices[:,i:seed_sentence_length+i]
         next_words = model.predict(words)  # output is 1-hot encoded
         assert(len(next_words.shape) == 3)
         assert(next_words.shape[0:2] == words.shape)
 
-        predicted_sentence_indices[:,seed_sentence_length+i+1] = \
+        predicted_sentence_indices[:,seed_sentence_length+i] = \
                 next_words[:,-1,:].argmax(axis=-1)
+
+    # print(predicted_sentence_indices)
+
+    # word ids to sentences
+    predicted_sentences = []
+    for i in range(predicted_sentence_indices.shape[0]):
+        predicted_sentences.append([])
+        for j in range(predicted_sentence_indices.shape[1]):
+            if j == seed_sentence_length:
+                predicted_sentences[-1].append('|')  # mark where we start
+                # predicting
+            word_id = predicted_sentence_indices[i,j]
+            predicted_sentences[-1].append(word_from_id[word_id])
+
+    return predicted_sentences
+
+
+# todo: alternative way of generating sentences: start with a seed word, as was
+# initially the case, and fill the rest of the network up with garbage which I
+# can ignore, gradually filling up the sentence with words. Maybe this is an
+# easier constraint to work with, and therefore produces sentences of a higher
+# quality. 
+
+
+def make_prediction_from_word(model, seed_words, word_from_id, seq_length=10):
+
+    num_sentences = len(seed_words)
+
+    predicted_sentence_indices = np.zeros((num_sentences, seq_length),
+                                          dtype=np.int32)
+
+    predicted_sentence_indices[:,0] = seed_words
+
+    for i in range(seq_length-1):
+        next_words = model.predict(predicted_sentence_indices)  # output is 1-hot encoded
+        assert(len(next_words.shape) == 3)
+        assert(next_words.shape[0:2] == predicted_sentence_indices.shape)
+
+        predicted_sentence_indices[:,i+1] = \
+                next_words[:,i+1,:].argmax(axis=-1)
+
+    # print(predicted_sentence_indices)
 
     # word ids to sentences
     predicted_sentences = []
@@ -280,37 +322,49 @@ def make_prediction(model, seed_sentences, word_from_id, seq_length=10):
     return predicted_sentences
 
 
+
 def load_model():
     path_model = "./checkpoints/final.hdf5"
     model = keras.models.load_model(path_model)
     return model
 
 
-def random_predict(path_predict, step_size=5, seq_length=20):
+def random_predict(path_predict, step_size=5, seq_length=20,
+                   seed_with_sentences=False):
     data_dir = "./data/ptb/data/"
     path_train = data_dir + "ptb.train.txt"
     id_from_word, word_from_id, train_data = ids_and_index_from_ptb(path_train,
                                                                     eos=True)
+    print(id_from_word["aer"])
     num_sentences = 10
     seed_sentence_length = step_size
 
     # pick `num_sentences` worth of start indexes and use those to 
     # generate some seed sentences
-
-    start_indices = [random.randint(0, len(train_data)) 
-                     for _ in range(num_sentences)]
-    seed_sentences = np.zeros((num_sentences, seed_sentence_length),
-                              dtype=np.int32)
-    
-    for i in range(num_sentences):
-        words = [train_data[j+start_indices[i]]
-                 for j in range(seed_sentence_length)]
-        seed_sentences[i,:] = words
-
-    assert(seed_sentences.max() < max(id_from_word.values()))
     model = load_model()
 
-    predicted_sentences = make_prediction(model, seed_sentences, word_from_id, seq_length)
+    if seed_with_sentences:
+        start_indices = [random.randint(0, len(train_data)) 
+                         for _ in range(num_sentences)]
+        seed_sentences = np.zeros((num_sentences, seed_sentence_length),
+                                  dtype=np.int32)
+        
+        for i in range(num_sentences):
+            words = [train_data[j+start_indices[i]]
+                     for j in range(seed_sentence_length)]
+            seed_sentences[i,:] = words
+
+        assert(seed_sentences.max() < max(id_from_word.values()))
+
+        predicted_sentences = make_prediction(model, seed_sentences, word_from_id, seq_length)
+
+    else:
+        start_words = random.sample(list(id_from_word.values()),
+                                    num_sentences)
+        predicted_sentences = make_prediction_from_word(model, start_words,
+                                                        word_from_id,
+                                                        step_size)
+
 
     with open(path_predict, "w") as fh:
         for sentence in predicted_sentences:
@@ -382,14 +436,19 @@ if __name__ == "__main__":
     parser.add_argument("--no_checkpoints", help="Ignore checkpoints",
                         action='store_true')
 
-    parser.add_argument("--pred", help="Make some random predictions")
+    parser.add_argument("--pred", help="Make some random predictions"
+                        "and save to this file")
+    parser.add_argument("--pred_size", help="Length of the sentence to "
+                        "predict", type=int, default=20)
+
     parser.add_argument("--step_size", help="Step size for training and"
                         "prediction", type=int, default=5)
 
     args = parser.parse_args()
 
     if args.pred:
-        random_predict(args.pred, step_size=args.step_size)
+        random_predict(args.pred, step_size=args.step_size,
+                       seq_length=args.pred_size)
     else:
         main(args.debug, lstm=args.lstm, num_epochs=args.num_epochs,
              steps_per_epoch=args.steps, valid_steps_per_epoch=args.vsteps,
