@@ -91,6 +91,7 @@ def load_data_as_dicts(stage='train'):
 
             if (i+1) % 1000 == 0:
                 print("Loaded {} of {} images".format(i+1, sz_training_data))
+                print("\n-----\nBREAKING PREMATURELY. FIX ME!\n-----\n")
                 break
 
     return loaded_data, word_count_dictionary
