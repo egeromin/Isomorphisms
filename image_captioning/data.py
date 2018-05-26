@@ -19,8 +19,8 @@ import numpy as np
 CAPTIONS_FILE = "./data/mscoco/annotations/captions_{stage}2014.json"
 IMAGES_DIR = "./data/mscoco/{stage}2014"
 
-IMAGE_INPUT_SIZE = (244, 244, 3)
-FIXED_WIDTH = 244
+IMAGE_INPUT_SIZE = (299, 299, 3)
+FIXED_WIDTH = 299
 
 DICTIONARY_SIZE = 10000
 
@@ -61,7 +61,7 @@ def load_image(image_id, stage='train'):
 
 
 
-def load_data_as_dicts(stage='train'):
+def load_data_as_dicts(stage='train', step_size=50):
     """
     Loads the input data for the given stage, where
     stage is 'train', 'test' or 'val'
@@ -77,6 +77,17 @@ def load_data_as_dicts(stage='train'):
         print("Loading captions")
         all_annotations = json.load(fh)['annotations']
         sz_training_data = len(all_annotations)
+
+        print("Checking sanitized captions")
+        max_caption_len = max([len(sanitize_caption(caption_data['caption']))
+                               for caption_data in all_annotations])
+        if max_caption_len > step_size:
+            raise ValueError("This step size is too small!"
+                             "max_caption_len={max_caption_len} while "
+                             "step_size={step_size}.".format(
+                                 max_caption_len=max_caption_len,
+                                 step_size=step_size))
+
         print("Loading images")
         for i, caption_data in enumerate(all_annotations):
             image_id = caption_data['image_id']
@@ -140,13 +151,88 @@ def to_1_hot(inp, vocabulary_size):
     return out
 
 
+class DataWithLabelGenerator:
+
+    def __init__(self, data, step_size, batch_size, vocabulary_size,
+                 stop_token):
+        self.data = data
+        self.step_size = step_size
+        self.batch_size = batch_size
+        self.vocabulary_size = vocabulary_size
+        self.stop_token = stop_token
+        len_data = len(self.data)
+        len_data = len_data - (len_data % self.step_size)
+        self.data = self.data[:len_data]
+
+    def generate(self):
+        """
+        Generate training / validation data given the full data ids.
+
+        Outputs a list of IDs in batches. 
+
+        Question: what are the dimensions of this data?
+
+        num_time_step * batch_size?
+        """
+
+        position = 0
+
+        # shuffling is not implemented
+        # TODO: implement shuffling.
+
+        len_data = len(self.data)
+
+        while True:
+            if position >= len(self.data) - self.step_size:
+                position = 0  # reset the training data if I'm at the end. 
+
+            end = position+self.batch_size
+
+            current_batch = self.data[position:end]
+            position = end
+
+            images = np.array([item['image'] for item in current_batch])
+            assert(images.shape == (self.batch_size,) + IMAGE_INPUT_SIZE)
+
+            input_captions = np.ones((self.batch_size, self.step_size),
+                                    dtype=np.int) * self.stop_token
+            output_captions = np.ones((self.batch_size, self.step_size+1),
+                                    dtype=np.int) * self.stop_token
+            
+            for i, item in enumerate(current_batch):
+                captions = item['tokenized_caption']
+                input_captions[i,:len(captions)] = captions
+                output_captions[i,:len(captions)] = captions
+
+            output_captions = to_1_hot(output_captions, self.vocabulary_size)
+
+            x = [images, input_captions]
+            y = output_captions
+
+            yield x, y
+
+
+def make_data_generator(stage='train', batch_size=32, step_size=50):
+    loaded_data, word_dictionary = load_data_as_dicts(stage='train')
+    id_from_word, word_from_id = make_id_word_conversions(loaded_data,
+                                                          word_dictionary)
+    tokens_from_data(loaded_data, id_from_word)
+
+    return DataWithLabelGenerator(loaded_data, step_size, batch_size,
+                                  len(id_from_word), id_from_word['.'])
+
+
 def main():
     loaded_data, word_dictionary = load_data_as_dicts(stage='train')
     id_from_word, word_from_id = make_id_word_conversions(loaded_data,
                                                           word_dictionary)
     tokens_from_data(loaded_data, id_from_word)
     for item in itertools.islice(loaded_data, 10):
-        print(item['tokenized_caption'])    
+        print(item['tokenized_caption'])
+
+
+
+
 
 if __name__ == "__main__":
     main()

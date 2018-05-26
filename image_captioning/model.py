@@ -8,8 +8,9 @@ from keras.layers import Input, Embedding, RNN, LSTM, TimeDistributed, Activatio
 from keras.callbacks import ModelCheckpoint
 import ipdb
 
-batch_size = 32
-seq_length = 5
+from image_captioning.data import make_data_generator
+
+
 
 
 class ExpandDims(Layer):
@@ -26,9 +27,9 @@ class ExpandDims(Layer):
         return input_shape[:1] + (1,) + input_shape[1:]
 
 
-def image_captioning_model(batch_size, seq_length, hidden_size, vocabulary_size):
-   # image = Input(shape=(299, 299, 3))
-   # inception_model = InceptionV3(weights='imagenet')
+def image_captioning_model(seq_length, hidden_size, vocabulary_size):
+    image = Input(shape=(299, 299, 3))
+    inception_model = InceptionV3(weights='imagenet')
 
     text_labels = Input(shape=(seq_length,))
 
@@ -38,8 +39,7 @@ def image_captioning_model(batch_size, seq_length, hidden_size, vocabulary_size)
 
     lstm = LSTM(hidden_size, return_sequences=True)
 
-    image_classes = Input(shape=(hidden_size,))
-    #inception_model(image)
+    image_classes = inception_model(image)
 
     
     # In order to change the dimensions of `image_classes`, we
@@ -66,12 +66,30 @@ def image_captioning_model(batch_size, seq_length, hidden_size, vocabulary_size)
 
     outputs = fc_activation(fc_layer(regularized_lstm_outputs))
 
-    model = Model(inputs=[image_classes, text_labels], outputs=outputs)
+    model = Model(inputs=[image, text_labels], outputs=outputs)
     model.compile(loss='categorical_crossentropy', optimizer='adam',
                   metrics=['categorical_accuracy'])
     return model
 
 
+def train(model, train_data_generator, valid_data_generator):
+    model.fit_generator(train_data_generator.generate(),
+                        100, 45,
+                        validation_data=valid_data_generator.generate(),
+                        validation_steps=10)
+
+    
+
+
+def main():
+    train_data_generator = make_data_generator('train')
+    valid_data_generator = make_data_generator('val')
+
+    model = image_captioning_model(50, 1000,
+                                   train_data_generator.vocabulary_size)
+    train(model, train_data_generator, valid_data_generator)
+
+
 if __name__ == "__main__":
-    image_captioning_model(32, 5, 1000, 10000)
+    main()
 
