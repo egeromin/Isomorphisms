@@ -217,6 +217,7 @@ def to_tfrecord(stage='train', shuffle=True, limit=None, path_tfrecord=None,
     sz_chunk = limit / num_chunks
     beginning = int((chunk-1) * sz_chunk)
     end = int(chunk * sz_chunk)
+    print(beginning, end)
     loaded_data = loaded_data[beginning:end]
 
     if path_tfrecord is None:
@@ -227,7 +228,7 @@ def to_tfrecord(stage='train', shuffle=True, limit=None, path_tfrecord=None,
             write_single_record(tfrecord, data, seq_length)
 
             if (i+1) % 1000 == 0:
-                print("Processed {} of {}".format(i+1, limit))
+                print("Processed {} of {}".format(i+1, int(sz_chunk)))
     
     
 def main():
