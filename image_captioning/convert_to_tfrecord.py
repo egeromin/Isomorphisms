@@ -25,6 +25,7 @@ import argparse
 import tempfile
 import sys
 import os
+import subprocess
 
 import numpy as np
 from scipy.misc import imsave
@@ -35,7 +36,6 @@ import config
 # from image_captioning import config
 # from image_captioning.data import make_data_generator
 
-tf.enable_eager_execution()
 
 
 
@@ -247,6 +247,7 @@ def main():
     print(args.test)
 
     if args.test:
+        tf.enable_eager_execution()
         sys.argv = list(set(sys.argv) - {'--test', '-t'}) 
         # slight hack. `unittest.main` also reads command line arguments,
         # so need to sanitize them before invoking `unittest.main`
@@ -256,7 +257,7 @@ def main():
                     num_chunks=args.num_chunks)
 
 
-def parse_tfrecord(path_tfrecord):
+def parse_tfrecord(path_tfrecord, gzipped=False):
     def parse_tfexample(example_proto):
         features = {
             'image': tf.FixedLenFeature(shape=[], dtype=tf.string), 
@@ -270,8 +271,12 @@ def parse_tfrecord(path_tfrecord):
 
         caption = tf.decode_raw(parsed_features['caption'], out_type=tf.int32)
         return image, caption
-
-    dataset = tf.data.TFRecordDataset(path_tfrecord)
+    
+    compression_type = ""
+    if gzipped:
+        compression_type = "GZIP"
+    dataset = tf.data.TFRecordDataset(path_tfrecord,
+                                      compression_type=compression_type)
     dataset = dataset.map(parse_tfexample)
     # return dataset.make_one_shot_iterator()
     return tfe.Iterator(dataset)
@@ -299,12 +304,21 @@ class TestConvert(unittest.TestCase):
                           'empty', 'bathroom'])
 
     def test_save_tfrecord(self):
-        word_from_id, id_from_word, seq_length = load_conversions()
         to_tfrecord(shuffle=False, limit=1, path_tfrecord=self.temp_tfrecord)
+        word_from_id, id_from_word, seq_length = load_conversions()
+
+        # now GZIP manually using the `gzip` command, as was done
+        # in real life
+        
+        subprocess.call(['gzip', self.temp_tfrecord])
+
+        path_gzipped = self.temp_tfrecord + ".gz"
+        self.assertTrue(os.path.isfile(path_gzipped))
+        self.assertFalse(os.path.isfile(self.temp_tfrecord))
 
         # check that the caption written is a very clean
         # and well decorated empty bathroom
-        images_and_captions = parse_tfrecord(self.temp_tfrecord)
+        images_and_captions = parse_tfrecord(path_gzipped, gzipped=True)
         image, caption = next(images_and_captions)
         print(caption.shape)
         word_from_id, id_from_word, seq_length = load_conversions()
@@ -318,6 +332,7 @@ class TestConvert(unittest.TestCase):
                          ['a', 'very', 'clean', 'and', 'well', 'decorated',
                           'empty', 'bathroom'])
 
+
         # temp_image = tempfile.mktemp(suffix=".png")
         # imsave(temp_image, image.numpy())
         # print(temp_image)
@@ -327,6 +342,13 @@ class TestConvert(unittest.TestCase):
             os.remove(self.temp_tfrecord)
             # need to check for existence, because with mktemp,
             # the file is only created if it's used.
+
+        # follow same approach to remove the gzipped file,
+        # if necessary
+        path_gzipped = self.temp_tfrecord + ".gz"
+        if os.path.isfile(path_gzipped):
+            os.remove(path_gzipped)
+
 
 
 if __name__ == "__main__":
