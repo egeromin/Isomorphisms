@@ -26,6 +26,7 @@ import tempfile
 import sys
 import os
 import subprocess
+import itertools
 
 import numpy as np
 from scipy.misc import imsave
@@ -263,7 +264,12 @@ def main():
                     num_chunks=args.num_chunks)
 
 
-def parse_tfrecord(path_tfrecord, gzipped=False):
+def parse_tfrecord(path_tfrecord=None, pattern_tfrecord=None, gzipped=False,
+                   num_chunks=1, seq_length=50, end_token=1,
+                   vocabulary_size=10000):
+    if path_tfrecord is None and pattern_tfrecord is None:
+        raise ValueError("One of `path_tfrecord` or `pattern_tfrecord` "
+                         " must be set")
     def parse_tfexample(example_proto):
         features = {
             'image': tf.FixedLenFeature(shape=[], dtype=tf.string), 
@@ -275,14 +281,34 @@ def parse_tfrecord(path_tfrecord, gzipped=False):
             tf.decode_raw(parsed_features['image'], out_type=tf.uint8),
             tf.float32), config.image_resize_size + (3,))
 
+        image = tf.random_crop(image, size=config.image_input_size + (3,))
+        # random crop
+
         caption = tf.decode_raw(parsed_features['caption'], out_type=tf.int32)
-        return image, caption
+        padding = tf.ones(shape=[seq_length - tf.shape(caption)[0]],
+                          dtype=tf.int32) * end_token
+
+        caption = tf.concat([caption, padding], axis=0)
+
+        one_hot_caption = tf.one_hot(caption, depth=vocabulary_size,
+                                     dtype=tf.float32)
+
+        # caption padded with full stops to reach seq_length
+        return (image, caption), one_hot_caption
     
     compression_type = ""
     if gzipped:
         compression_type = "GZIP"
-    dataset = tf.data.TFRecordDataset(path_tfrecord,
+
+    if path_tfrecord is not None:
+        dataset = tf.data.TFRecordDataset(path_tfrecord,
                                       compression_type=compression_type)
+    else:
+        dataset = tf.data.TFRecordDataset.list_files(
+            file_pattern=pattern_tfrecord
+        ).interleave(tf.data.TFRecordDataset, cycle_length=num_chunks,
+                     block_length=1)
+
     dataset = dataset.map(parse_tfexample)
     return dataset
     # return dataset.make_one_shot_iterator()
@@ -325,21 +351,23 @@ class TestConvert(unittest.TestCase):
 
         # check that the caption written is a very clean
         # and well decorated empty bathroom
-        images_and_captions = parse_tfrecord(path_gzipped, gzipped=True)
+        images_and_captions = parse_tfrecord(path_gzipped, gzipped=True,
+                                             end_token=id_from_word['.'],
+                                             seq_length=seq_length,
+                                             vocabulary_size=len(word_from_id))
         images_and_captions = tfe.Iterator(images_and_captions)
-        image, caption = next(images_and_captions)
+        (image, caption), _ = next(images_and_captions)
         print(caption.shape)
         word_from_id, id_from_word, seq_length = load_conversions()
         print(caption.numpy())
         
         parsed_caption = [word_from_id[word] for word in caption.numpy()]
-        parsed_caption = list(filter(lambda word: word != '.',
-                                     parsed_caption))
+        target_caption = ['a', 'very', 'clean', 'and', 'well', 'decorated',
+                          'empty', 'bathroom']
         
-        self.assertEqual(parsed_caption,
-                         ['a', 'very', 'clean', 'and', 'well', 'decorated',
-                          'empty', 'bathroom'])
-
+        target_caption.extend(itertools.repeat('.', seq_length -
+                                               len(target_caption)))
+        self.assertEqual(parsed_caption, target_caption)
 
         # temp_image = tempfile.mktemp(suffix=".png")
         # imsave(temp_image, image.numpy())
