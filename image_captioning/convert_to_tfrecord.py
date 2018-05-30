@@ -135,8 +135,12 @@ def tokens_from_data(input_data, id_from_word):
     Given input data and id_from_word, make the captions for each data
     item by populating the `tokenized_caption` attribute.
     """
+
+    def get_token(word):
+        return id_from_word.get(word, id_from_word['<unk>'])
+
     for item in input_data:
-        item['tokenized_caption'] = [id_from_word[word] for word in
+        item['tokenized_caption'] = [get_token(word) for word in
                                      item['sanitized_caption']]
 
 def _bytes_feature(value):
@@ -148,14 +152,14 @@ def _bytes_feature(value):
 
 
 
-def write_single_record(tfrecord, data, seq_length):
+def write_single_record(tfrecord, data, seq_length, stage):
     """
     Write a single item of data to the file. 
     """
     caption = data['tokenized_caption']
     assert(len(caption) == len(data['sanitized_caption']))
     np_caption = np.array(caption).astype(np.int32)
-    image = load_image(data['image_id'])
+    image = load_image(data['image_id'], stage)
 
     feature = {
         'image': _bytes_feature(image.tobytes()),
@@ -225,7 +229,7 @@ def to_tfrecord(stage='train', shuffle=True, limit=None, path_tfrecord=None,
     with tf.python_io.TFRecordWriter(path_tfrecord) as tfrecord:
         for i, data in enumerate(loaded_data):
 
-            write_single_record(tfrecord, data, seq_length)
+            write_single_record(tfrecord, data, seq_length, stage)
 
             if (i+1) % 1000 == 0:
                 print("Processed {} of {}".format(i+1, int(sz_chunk)))
@@ -242,6 +246,8 @@ def main():
                         type=int, default=1)
     parser.add_argument("--num_chunks", help="Total number of chunks",
                         type=int, default=1)
+    parser.add_argument("--stage", help="Stage to process. One of 'train', "
+                        "'val' or 'test'", default='train')
     args = parser.parse_args()
 
     print(args.test)
@@ -253,7 +259,7 @@ def main():
         # so need to sanitize them before invoking `unittest.main`
         unittest.main()
     else:
-        to_tfrecord('train', limit=args.limit, chunk=args.chunk,
+        to_tfrecord(args.stage, limit=args.limit, chunk=args.chunk,
                     num_chunks=args.num_chunks)
 
 
@@ -278,8 +284,9 @@ def parse_tfrecord(path_tfrecord, gzipped=False):
     dataset = tf.data.TFRecordDataset(path_tfrecord,
                                       compression_type=compression_type)
     dataset = dataset.map(parse_tfexample)
+    return dataset
     # return dataset.make_one_shot_iterator()
-    return tfe.Iterator(dataset)
+    # return tfe.Iterator(dataset)
     # return dataset
     
 
@@ -319,6 +326,7 @@ class TestConvert(unittest.TestCase):
         # check that the caption written is a very clean
         # and well decorated empty bathroom
         images_and_captions = parse_tfrecord(path_gzipped, gzipped=True)
+        images_and_captions = tfe.Iterator(images_and_captions)
         image, caption = next(images_and_captions)
         print(caption.shape)
         word_from_id, id_from_word, seq_length = load_conversions()
