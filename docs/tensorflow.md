@@ -11,3 +11,7 @@ Parts that are bound to be there:
 1. Run the training
 
 
+## Questions
+
+1. Which code must be 'run' inside a session?
+

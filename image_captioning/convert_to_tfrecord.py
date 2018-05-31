@@ -33,7 +33,8 @@ from scipy.misc import imsave
 import tensorflow as tf
 import tensorflow.contrib.eager as tfe
 
-import config
+from image_captioning import config
+# from image_captioning import config
 # from image_captioning import config
 # from image_captioning.data import make_data_generator
 
@@ -284,13 +285,17 @@ def parse_tfrecord(path_tfrecord=None, pattern_tfrecord=None, gzipped=False,
         image = tf.random_crop(image, size=config.image_input_size + (3,))
         # random crop
 
-        caption = tf.decode_raw(parsed_features['caption'], out_type=tf.int32)
-        padding = tf.ones(shape=[seq_length - tf.shape(caption)[0]],
+        caption_no_pad = tf.decode_raw(parsed_features['caption'], 
+                                       out_type=tf.int32)
+        padding = tf.ones(shape=[seq_length - tf.shape(caption_no_pad)[0]],
+                          dtype=tf.int32) * end_token
+        padding_output = tf.ones(shape=[1 + seq_length - tf.shape(caption_no_pad)[0]],
                           dtype=tf.int32) * end_token
 
-        caption = tf.concat([caption, padding], axis=0)
+        caption = tf.concat([caption_no_pad, padding], axis=0)
+        caption_output = tf.concat([caption_no_pad, padding_output], axis=0)
 
-        one_hot_caption = tf.one_hot(caption, depth=vocabulary_size,
+        one_hot_caption = tf.one_hot(caption_output, depth=vocabulary_size,
                                      dtype=tf.float32)
 
         # caption padded with full stops to reach seq_length
@@ -300,13 +305,16 @@ def parse_tfrecord(path_tfrecord=None, pattern_tfrecord=None, gzipped=False,
     if gzipped:
         compression_type = "GZIP"
 
+    def read_fromfile(path_tf):
+        return tf.data.TFRecordDataset(path_tf,
+                                       compression_type=compression_type)
+
     if path_tfrecord is not None:
-        dataset = tf.data.TFRecordDataset(path_tfrecord,
-                                      compression_type=compression_type)
+        dataset = read_fromfile(path_tf)
     else:
         dataset = tf.data.TFRecordDataset.list_files(
             file_pattern=pattern_tfrecord
-        ).interleave(tf.data.TFRecordDataset, cycle_length=num_chunks,
+        ).interleave(read_fromfile, cycle_length=num_chunks,
                      block_length=1)
 
     dataset = dataset.map(parse_tfexample)

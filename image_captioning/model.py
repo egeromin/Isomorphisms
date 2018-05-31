@@ -6,10 +6,15 @@ from keras.applications.inception_v3 import InceptionV3
 from keras.models import Sequential
 from keras.layers import Input, Embedding, RNN, LSTM, TimeDistributed, Activation, Dropout, Dense, Layer
 from keras.callbacks import ModelCheckpoint
-import ipdb
+# import ipdb
+import argparse
 
+from image_captioning.convert_to_tfrecord import parse_tfrecord
+from image_captioning import config
 from image_captioning.data import make_data_generator
+from image_captioning.convert_to_tfrecord import load_conversions
 
+ #tf.enable_eager_execution()
 
 
 
@@ -24,7 +29,7 @@ class ExpandDims(Layer):
         return tf.expand_dims(input_tensor, axis=self.axis)
 
     def compute_output_shape(self, input_shape):
-        return input_shape[:1] + (1,) + input_shape[1:]
+            return input_shape[:1] + (1,) + input_shape[1:]
 
 
 def image_captioning_model(seq_length, hidden_size, vocabulary_size):
@@ -76,17 +81,33 @@ def train(model, train_data_generator, valid_data_generator):
     model.fit_generator(train_data_generator.generate(),
                         100, 45,
                         validation_data=valid_data_generator.generate(),
-                        validation_steps=10)
+                        validation_steps=10,
+                        workers=0)
 
     
 
 
 def main():
-    train_data_generator = make_data_generator('train')
-    valid_data_generator = make_data_generator('val')
+    parser = argparse.ArgumentParser(description="train the image captioning "
+                                     "pipeline")
+    parser.add_argument("--concurrency", help="Num of threads to read data in "
+                        "concurrently", type=int, default=1)
 
-    model = image_captioning_model(50, 1000,
-                                   train_data_generator.vocabulary_size)
+    args = parser.parse_args()
+
+    train_data_generator = make_data_generator(stage='train',
+                                               num_chunks=args.concurrency)
+    valid_data_generator = make_data_generator(stage='valid',
+                                               num_chunks=args.concurrency)
+
+    word_from_id, id_from_word, seq_length = load_conversions()
+    vocabulary_size = len(word_from_id)
+
+    print("seq_length = {}".format(seq_length))
+
+    model = image_captioning_model(seq_length, 1000,
+                                   vocabulary_size)
+
     train(model, train_data_generator, valid_data_generator)
 
 
