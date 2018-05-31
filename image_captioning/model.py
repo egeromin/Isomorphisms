@@ -5,7 +5,7 @@ from keras.applications.inception_v3 import InceptionV3
 
 from keras.models import Sequential
 from keras.layers import Input, Embedding, RNN, LSTM, TimeDistributed, Activation, Dropout, Dense, Layer
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint, TensorBoard
 # import ipdb
 import argparse
 
@@ -77,28 +77,46 @@ def image_captioning_model(seq_length, hidden_size, vocabulary_size):
     return model
 
 
-def train(model, train_data_generator, valid_data_generator):
-    model.fit_generator(train_data_generator.generate(),
-                        100, 45,
-                        validation_data=valid_data_generator.generate(),
-                        validation_steps=10,
-                        workers=0)
+def train(model, train_data_generator, valid_data_generator,
+          sz_epoch=200, num_epochs=200, valid_steps=10,
+          checkpoints_dir='./image_captioning/checkpoints/',
+          tboard_dir='./image_captioning/tensorboard/'):
 
-    
+    callbacks = [
+        ModelCheckpoint(checkpoints_dir + 'epoch{epoch:02d}.hdf5',
+                        verbose=1),
+        TensorBoard(log_dir=tboard_dir)
+    ]
+    try:
+        model.fit_generator(train_data_generator.generate(),
+                            sz_epoch, num_epochs,
+                            validation_data=valid_data_generator.generate(),
+                            validation_steps=valid_steps,
+                            workers=0,
+                            callbacks=callbacks)
+
+    except KeyboardInterrupt:
+        print("Ending prematurely")
+
+    model.save(checkpoints_dir + 'final.hdf5')
 
 
 def main():
     parser = argparse.ArgumentParser(description="train the image captioning "
                                      "pipeline")
-    parser.add_argument("--concurrency", help="Num of threads to read data in "
+    parser.add_argument("--conc", help="Num of threads to read data in "
                         "concurrently", type=int, default=1)
+    parser.add_argument("--sz_epoch", help="Size of an epoch", type=int,
+                        default=200)
+    parser.add_argument("--num_epochs", help="Number of epochs", type=int,
+                        default=200)
 
     args = parser.parse_args()
 
     train_data_generator = make_data_generator(stage='train',
-                                               num_chunks=args.concurrency)
-    valid_data_generator = make_data_generator(stage='valid',
-                                               num_chunks=args.concurrency)
+                                               num_chunks=args.conc)
+    valid_data_generator = make_data_generator(stage='val',
+                                               num_chunks=args.conc)
 
     word_from_id, id_from_word, seq_length = load_conversions()
     vocabulary_size = len(word_from_id)
@@ -108,7 +126,8 @@ def main():
     model = image_captioning_model(seq_length, 1000,
                                    vocabulary_size)
 
-    train(model, train_data_generator, valid_data_generator)
+    train(model, train_data_generator, valid_data_generator,
+          args.sz_epoch, args.num_epochs)
 
 
 if __name__ == "__main__":

@@ -8,4 +8,6 @@ data/
 logs-rnn/
 logs-lstm/
 predictions.txt
+image_captioning/checkpoints/
+image_captioning/tensorboard/ 
 
