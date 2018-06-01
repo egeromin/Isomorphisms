@@ -60,12 +60,15 @@ def sanitize_caption(caption):
     return re.sub('-', ' -', re.sub('[.,"]', '', caption)).lower().split()
 
 
-def load_image(image_id, stage='train'):
+def load_image(image_id, stage='train', path=None):
     """Returns the image corresponding to the image ID"""
     def _resize_image(image):
         return image.resize(config.image_resize_size)
-                            
-    image = Image.open(get_full_image_path(image_id, stage))
+
+    if path is None:
+        path = get_full_image_path(image_id, stage)
+
+    image = Image.open(path)
     resized_image = _resize_image(image)
     np_image = np.array(resized_image)
     if len(np_image.shape) == 2:  # sometimes we get a black-and-white image
