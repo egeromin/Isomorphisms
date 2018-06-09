@@ -35,10 +35,13 @@ def get_character_stream(stage='train', chunk=1):
     return open(data_path, 'r'), os.path.getsize(data_path)
 
 
-def get_output_path(stage, chunk):
+def get_output_path(stage, chunk="*"):
+    if chunk != "*":
+        chunk = str(chunk).zfill(2)
+
     return os.path.join(
         config.data_dir, "{stage}.{chunk}.tfrecord".format(
-            stage=stage, chunk=str(chunk).zfill(2)))
+            stage=stage, chunk=chunk))
 
 
 class DataBuffer:
