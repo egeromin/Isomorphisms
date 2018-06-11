@@ -38,7 +38,7 @@ def training_loop():
             prediction, state = lstm(inp[:,j], state)
             if accuracy:
                 diffs = (tf.argmax(prediction, axis=-1) ==
-                         tf.argmax(inp[:,j], axis=-1))
+                         tf.argmax(label[:,j], axis=-1))
                 diffs = tf.cast(diffs, tf.float32)
                 loss += tf.reduce_mean(diffs)
             else:
