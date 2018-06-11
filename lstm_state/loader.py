@@ -8,8 +8,8 @@ from lstm_state import config
 from lstm_state.convert_to_tfrecord import get_output_path
 
 
-def dataset_from_stage(stage, batch=True, shuffle=True):
-
+def dataset_from_stage(stage, batch=True, shuffle=True,
+                       infinite=True):
     def parse_tfexample(example_proto):
         features = {
             'input': tf.FixedLenFeature(shape=[], dtype=tf.string), 
@@ -30,10 +30,12 @@ def dataset_from_stage(stage, batch=True, shuffle=True):
     ).interleave(tf.data.TFRecordDataset, cycle_length=config.num_tfrecords,
                  block_length=1)
     dataset = dataset.map(parse_tfexample)
-    if batch:
-        dataset = dataset.batch(config.batch_size)
+    if infinite:
+        dataset = dataset.repeat()
     if shuffle:
         dataset = dataset.shuffle(10000)
+    if batch:
+        dataset = dataset.batch(config.batch_size)
     return dataset
 
 

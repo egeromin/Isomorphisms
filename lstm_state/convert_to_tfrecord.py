@@ -51,7 +51,7 @@ class DataBuffer:
 
     def __init__(self, char_stream):
         self.char_stream = char_stream
-        self.data = ""
+        self._data = ""
         self.refresh()
 
     def refresh(self):
@@ -59,16 +59,20 @@ class DataBuffer:
         Fetch the next config.seq_length number of characters, and return
         the excess characters consumed in the stream as well. 
         """
-        self.data = self.data[config.seq_length:]
+        self._data = self._data[config.seq_length:]
         next_utf8 = self.char_stream.read(1 + config.seq_length -
-                                          len(self.data))
-        # ensure there's at least 1 + config.seq_length items in self.data
+                                          len(self._data))
+        # ensure there's at least 1 + config.seq_length items in self._data
         next_ascii = unidecode(next_utf8)
         next_ascii = re.sub(r'\s+', ' ', next_ascii).lower()
 
-        self.data = self.data + next_ascii
-        if len(self.data) < 1 + config.seq_length:
-            self.data = ""
+        self._data = self._data + next_ascii
+        if len(self._data) < 1 + config.seq_length:
+            self._data = ""
+
+    @property
+    def data(self):
+        return self._data[:config.seq_length+1]
 
 
 def to_tfrecord(stage='train', limit=None, path_tfrecord=None,
