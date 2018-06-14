@@ -10,6 +10,7 @@ from keras.layers import RNN, LSTM, TimeDistributed, Activation
 from keras import backend as K
 
 from lstm_state.loader import dataset_from_stage
+from lstm_state import config
 
 
 def make_model():
@@ -18,7 +19,8 @@ def make_model():
     """
     hidden_size = 256
     model = Sequential()
-    model.add(LSTM(hidden_size, return_sequences=True))
+    model.add(LSTM(hidden_size, return_sequences=True,
+              input_shape=(config.seq_length, 256)))
     model.compile(loss='categorical_crossentropy', optimizer='adam',
                   metrics=['categorical_accuracy'])
     return model
