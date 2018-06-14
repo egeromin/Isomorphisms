@@ -18,6 +18,52 @@ tf.enable_eager_execution()
 lstm_size = 256
 
 
+
+def _to_tensor(x, dtype):
+    """Convert the input `x` to a tensor of type `dtype`.
+
+    # Arguments
+        x: An object to be converted (numpy array, list, tensors).
+        dtype: The destination type.
+
+    # Returns
+        A tensor.
+    """
+    return tf.convert_to_tensor(x, dtype=dtype)
+
+
+
+def categorical_crossentropy(target, output, from_logits=False):
+    """Categorical crossentropy between an output tensor and a target tensor.
+
+    # Arguments
+        target: A tensor of the same shape as `output`.
+        output: A tensor resulting from a softmax
+            (unless `from_logits` is True, in which
+            case `output` is expected to be the logits).
+        from_logits: Boolean, whether `output` is the
+            result of a softmax, or is a tensor of logits.
+
+    # Returns
+        Output tensor.
+    """
+    # Note: tf.nn.softmax_cross_entropy_with_logits
+    # expects logits, Keras expects probabilities.
+    if not from_logits:
+        # scale preds so that the class probas of each sample sum to 1
+        output /= tf.reduce_sum(output,
+                                len(output.get_shape()) - 1,
+                                True)
+        # manual computation of crossentropy
+        _epsilon = _to_tensor(1e-7, output.dtype.base_dtype)
+        output = tf.clip_by_value(output, _epsilon, 1. - _epsilon)
+        return - tf.reduce_sum(target * tf.log(output),
+                               len(output.get_shape()) - 1)
+    else:
+        return tf.nn.softmax_cross_entropy_with_logits(labels=target,
+                                                       logits=output)
+
+
 def training_loop():
     optimizer = tf.train.AdamOptimizer()
     lstm = tf.contrib.rnn.BasicLSTMCell(lstm_size)
@@ -36,18 +82,23 @@ def training_loop():
         loss = 0
         for j in range(config.seq_length):
             prediction, state = lstm(inp[:,j], state)
+            # ipdb.set_trace()
             if accuracy:
-                diffs = (tf.argmax(prediction, axis=-1) ==
-                         tf.argmax(label[:,j], axis=-1))
+                diffs = tf.equal(tf.argmax(prediction, axis=-1),
+                                 tf.argmax(label[:,j], axis=-1))
+                # ipdb.set_trace()
                 diffs = tf.cast(diffs, tf.float32)
                 loss += tf.reduce_mean(diffs)
             else:
-                loss += tf.losses.sigmoid_cross_entropy(
-                            prediction, label[:,j]
-                        )
+                # loss += tf.losses.sigmoid_cross_entropy(
+                #             label[:,j], prediction
+                #         )
+                loss += tf.reduce_mean(
+                    categorical_crossentropy(label[:,j], prediction))
+                # ipdb.set_trace()
 
-        if accuracy:
-            loss /= config.seq_length
+        # if accuracy:
+        loss /= config.seq_length
                 
         return loss
 
@@ -60,9 +111,8 @@ def training_loop():
         if i % 25 == 0:
             xval, yval = next(val_iterator)
             val_loss = predict(xval, yval, accuracy=True)
-            print("Validation accuracy: {:.2f}".format(val_loss))
-        if True:
-            print("Current loss: {:.2f}".format(loss))
+            print("Validation accuracy: {:.4f}".format(val_loss))
+            print("Current loss: {:.4f}".format(loss))
            
         grads = tape.gradient(loss, lstm.variables)
         optimizer.apply_gradients(zip(grads, lstm.variables))

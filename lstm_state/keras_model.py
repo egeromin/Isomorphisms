@@ -47,7 +47,7 @@ def training_loop():
     train_data_generator = DataGenerator(dataset_from_stage('train'))
     valid_data_generator = DataGenerator(dataset_from_stage('valid'))
     model = make_model()
-    steps_per_epoch=25
+    steps_per_epoch=100
     num_epochs=200
 
     # ipdb.set_trace()
