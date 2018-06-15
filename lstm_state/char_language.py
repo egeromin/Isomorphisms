@@ -157,7 +157,6 @@ def generate(lstm, start='a'):
     return "".join(chars)
 
 
-
 def main():
     lstm = training_loop(200)
     print("Generating a sentence using the trained LSTM")
@@ -187,10 +186,15 @@ def main():
     current_states_reduced = pca.fit_transform(current_states)
     print(current_states_reduced.shape)
 
+    pca2 = PCA(n_components=1)
+    hidden_states_reduced = pca2.fit_transform(current_states)
+
     for _ in range(10):
         random_sentence = np.random.randint(0, config.batch_size)
 
         principal_state_component = [current_states_reduced[i*64 + random_sentence]
+                                     for i in range(config.seq_length + 1)]
+        hidden_principal_state_component = [hidden_states_reduced[i*64 + random_sentence]
                                      for i in range(config.seq_length + 1)]
 
         words = np.argmax(x.numpy(), axis=-1)
@@ -198,8 +202,8 @@ def main():
         
         plt.plot(principal_state_component)
         plt.show()
-
-
+        plt.plot(hidden_principal_state_component)
+        plt.show()
 
 
 if __name__ == "__main__":
