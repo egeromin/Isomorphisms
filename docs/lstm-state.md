@@ -17,4 +17,4 @@ Questions:
 - why is there this decay? and why is it so uniformly the case? Does this also
   depend on the simplicity of the model?
 - what does the shift mean?
-
+- why are currently hidden state and current state plots identical?
