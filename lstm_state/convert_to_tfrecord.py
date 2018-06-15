@@ -62,11 +62,14 @@ class DataBuffer:
         self._data = self._data[config.seq_length:]
         next_utf8 = self.char_stream.read(1 + config.seq_length -
                                           len(self._data))
-        # ensure there's at least 1 + config.seq_length items in self._data
-        next_ascii = unidecode(next_utf8)
-        next_ascii = re.sub(r'\s+', ' ', next_ascii).lower()
+        while len(self._data) < 1 + config.seq_length and \
+              len(next_utf8) > 0:
+            # ensure there's at least 1 + config.seq_length items in self._data
+            next_ascii = unidecode(next_utf8)
+            next_ascii = re.sub(r'\s+', ' ', next_ascii).lower()
 
-        self._data = self._data + next_ascii
+            self._data = self._data + next_ascii
+
         if len(self._data) < 1 + config.seq_length:
             self._data = ""
 
@@ -101,7 +104,7 @@ def to_tfrecord(stage='train', limit=None, path_tfrecord=None,
             # the rest is just for displaying progress
             approximate_bytes_processed += config.seq_length
             if approximate_bytes_processed % 10000 == 0:
-                print("Processed about {}%%".format(
+                print("Processed about {:.2f}%".format(
                     approximate_bytes_processed / num_bytes))
 
 
