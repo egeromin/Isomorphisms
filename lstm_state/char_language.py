@@ -7,6 +7,7 @@ import tensorflow as tf
 import numpy as np
 import tensorflow.contrib.eager as tfe
 import matplotlib.pyplot as plt
+import argparse
 
 from sklearn.decomposition import PCA
 
@@ -14,6 +15,8 @@ import ipdb
 
 from lstm_state.loader import dataset_from_stage
 from lstm_state import config
+from lstm_state.models import SimpleLSTM
+
 
 tf.enable_eager_execution()
 
@@ -67,45 +70,39 @@ def categorical_crossentropy(target, output, from_logits=False):
                                                        logits=output)
 
 
-def predict(lstm, inp, label, accuracy=False, return_state=False):
-    hidden_state = tf.zeros([config.batch_size, lstm_size])
-    current_state = tf.zeros([config.batch_size, lstm_size])
+def predict(model, inp, label, accuracy=False, return_state=False):
 
-    state = hidden_state, current_state
-
-    states = []
+    state = model.zero_state()
     if return_state:
-        states.append(tuple(map(lambda x: x.numpy(), state)))
+        model.start_saving_state()
     
     loss = 0
     for j in range(config.seq_length):
-        prediction, state = lstm(inp[:,j], state)
-        if return_state:
-            states.append(tuple(map(lambda x: x.numpy(), state)))
-        # ipdb.set_trace()
+        prediction, state = model.forward(inp[:,j], state)
+
         if accuracy:
             diffs = tf.equal(tf.argmax(prediction, axis=-1),
                              tf.argmax(label[:,j], axis=-1))
-            # ipdb.set_trace()
             diffs = tf.cast(diffs, tf.float32)
             loss += tf.reduce_mean(diffs)
         else:
             # loss += tf.losses.sigmoid_cross_entropy(
             #             label[:,j], prediction
             #         )
-            loss += tf.reduce_mean(
-                categorical_crossentropy(label[:,j], prediction))
-            # ipdb.set_trace()
+            # loss += tf.reduce_mean(
+            #     categorical_crossentropy(label[:,j], prediction))
+            
+            curr_loss = tf.losses.softmax_cross_entropy(label[:,j],
+                                                    prediction)
+            loss += curr_loss
 
-    # if accuracy:
     loss /= config.seq_length
             
-    return loss, states
+    return loss, model.get_saved_states()
 
 
-def training_loop(num_iterations=8000):
+def training_loop(model, num_iterations=8000):
     optimizer = tf.train.AdamOptimizer()
-    lstm = tf.contrib.rnn.BasicLSTMCell(lstm_size)
 
     # ipdb.set_trace()
     dataset = dataset_from_stage('train')
@@ -119,21 +116,21 @@ def training_loop(num_iterations=8000):
         x, y = next(data_iterator)
         
         with tfe.GradientTape() as tape:
-            loss, _ = predict(lstm, x, y)
+            loss, _ = predict(model, x, y)
 
         if i % 25 == 0:
             xval, yval = next(val_iterator)
-            val_loss, _ = predict(lstm, xval, yval, accuracy=True)
+            val_loss, _ = predict(model, xval, yval, accuracy=True)
             print("Validation accuracy: {:.4f}".format(val_loss))
             print("Current loss: {:.4f}".format(loss))
            
-        grads = tape.gradient(loss, lstm.variables)
-        optimizer.apply_gradients(zip(grads, lstm.variables))
+        grads = tape.gradient(loss, model.get_variables())
+        optimizer.apply_gradients(zip(grads, model.get_variables()))
 
-    return lstm
+    return model
 
 
-def generate(lstm, start='a'):
+def generate(model, start='a'):
     """
     Generate a sentence given an LSTM and a starting character
     """
@@ -150,7 +147,7 @@ def generate(lstm, start='a'):
     state = hidden_state, current_state
 
     for i in range(config.seq_length):
-        word, state = lstm(word, state)
+        word, state = model.forward(word, state)
         word_int = tf.argmax(word, axis=-1)
         chars.append(chr(word_int.numpy()[0]))
 
@@ -158,18 +155,25 @@ def generate(lstm, start='a'):
 
 
 def main():
-    lstm = training_loop(200)
+
+    parser = argparse.ArgumentParser(description="plot the state of an RNN "
+                                     "during prediction")
+    parser.add_argument("--num", help="Number of training iterations",
+                        type=int, default=200)
+    args = parser.parse_args()
+
+    model = SimpleLSTM()
+    model = training_loop(model, args.num)
+
     print("Generating a sentence using the trained LSTM")
-
-    print(generate(lstm))
-
+    print(generate(model))
 
     dataset = dataset_from_stage('test')
     test_iterator = tfe.Iterator(dataset)
 
     x, y = next(test_iterator)
     print(x.shape)
-    _, states = predict(lstm, x, y, return_state=True)
+    _, states = predict(model, x, y, return_state=True)
 
     # ipdb.set_trace()
 
