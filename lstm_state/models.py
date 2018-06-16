@@ -2,6 +2,7 @@
 Different models to try out for language modelling.
 """
 import tensorflow as tf
+import ipdb
 
 from lstm_state import config
 
@@ -12,8 +13,13 @@ class RNNLanguageModel:
         self.should_save_state = False
         self.saved_states = []
 
-    def zero_state(self):
+    def _zero_state(self, batch_size):
         raise NotImplementedError
+
+    def zero_state(self, batch_size=None):
+        if batch_size is None:
+            batch_size = config.batch_size
+        return self._zero_state(batch_size)
 
     def get_variables(self):
         raise NotImplementedError
@@ -44,13 +50,13 @@ class RNNLanguageModel:
 class SimpleLSTM(RNNLanguageModel):
 
     def __init__(self):
+        super().__init__()
         self.lstm_size = 256
         self.lstm = tf.contrib.rnn.BasicLSTMCell(self.lstm_size)
-        super().__init__()
 
-    def zero_state(self):
-        hidden_state = tf.zeros([config.batch_size, self.lstm_size])
-        current_state = tf.zeros([config.batch_size, self.lstm_size])
+    def _zero_state(self, batch_size):
+        hidden_state = tf.zeros([batch_size, self.lstm_size])
+        current_state = tf.zeros([batch_size, self.lstm_size])
         return hidden_state, current_state
 
     def save_state(self, state):
@@ -61,4 +67,26 @@ class SimpleLSTM(RNNLanguageModel):
 
     def _forward(self, inp, state):
         return self.lstm(inp, state)
+
+
+class LSTMWithDense(SimpleLSTM):
+    
+    def __init__(self):
+        super().__init__()
+        self.lstm_size = 400
+        self.output_size = 256
+        self.dense1 = tf.layers.Dense(self.lstm_size,
+                                      activation=tf.nn.relu)
+        self.lstm = tf.contrib.rnn.BasicLSTMCell(self.lstm_size)
+        self.dense2 = tf.layers.Dense(self.output_size)
+
+    def get_variables(self):
+        return self.dense1.variables + self.lstm.variables + \
+                self.dense2.variables
+
+    def _forward(self, inp, state):
+        lstm_inp = self.dense1(inp)
+        lstm_out, next_state = self.lstm(lstm_inp, state)
+        out = self.dense2(lstm_out)
+        return out, next_state
 

@@ -15,7 +15,7 @@ import ipdb
 
 from lstm_state.loader import dataset_from_stage
 from lstm_state import config
-from lstm_state.models import SimpleLSTM
+from lstm_state import models
 
 
 tf.enable_eager_execution()
@@ -141,10 +141,7 @@ def generate(model, start='a'):
 
     word = tf.one_hot(tf.convert_to_tensor([start]), depth=256)
         
-    hidden_state = tf.zeros([1, lstm_size])
-    current_state = tf.zeros([1, lstm_size])
-
-    state = hidden_state, current_state
+    state = model.zero_state(batch_size=1)
 
     for i in range(config.seq_length):
         word, state = model.forward(word, state)
@@ -162,7 +159,7 @@ def main():
                         type=int, default=200)
     args = parser.parse_args()
 
-    model = SimpleLSTM()
+    model = models.LSTMWithDense()
     model = training_loop(model, args.num)
 
     print("Generating a sentence using the trained LSTM")
