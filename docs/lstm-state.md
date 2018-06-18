@@ -18,3 +18,6 @@ Questions:
   depend on the simplicity of the model?
 - what does the shift mean?
 - why are currently hidden state and current state plots identical?
+- could merge all state to be 1 big vector, if I have multiple stacked LSTMs,
+  and then plot the principal components for *that*. 
+

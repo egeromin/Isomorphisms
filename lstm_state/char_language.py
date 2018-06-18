@@ -132,23 +132,21 @@ def training_loop(model, num_iterations=8000):
     return model
 
 
-def generate(model, start='a'):
+def generate(model):
     """
     Generate a sentence given an LSTM and a starting character
     """
-    chars = [start]
-    start = ord(start)
+    chars = []
 
-    # ipdb.set_trace()
-
-    word = tf.one_hot(tf.convert_to_tensor([start]), depth=256)
+    word = tf.zeros((1, 256), tf.float32)
         
     state = model.zero_state(batch_size=1)
 
     for i in range(config.seq_length):
         word, state = model.forward(word, state)
-        word_int = tf.argmax(word, axis=-1)
-        chars.append(chr(word_int.numpy()[0]))
+        word_prob = tf.nn.softmax(word)
+        word_int = np.random.choice(256, p=word_prob.numpy()[0])
+        chars.append(chr(word_int))
 
     return "".join(chars)
 
