@@ -12,4 +12,4 @@ image_captioning/checkpoints/
 image_captioning/tensorboard/ 
 image_captioning/captions.json
 *.png
-
+checkpoints/

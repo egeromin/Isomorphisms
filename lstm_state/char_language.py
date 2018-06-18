@@ -111,21 +111,22 @@ def training_loop(model, num_iterations=8000):
     val_dataset = dataset_from_stage('valid')
     val_iterator = tfe.Iterator(val_dataset)
 
-
     for i in range(num_iterations):
         x, y = next(data_iterator)
         
         with tfe.GradientTape() as tape:
             loss, _ = predict(model, x, y)
 
+        grads = tape.gradient(loss, model.get_variables())
+        optimizer.apply_gradients(zip(grads, model.get_variables()))
+
         if i % 25 == 0:
             xval, yval = next(val_iterator)
             val_loss, _ = predict(model, xval, yval, accuracy=True)
             print("Validation accuracy: {:.4f}".format(val_loss))
             print("Current loss: {:.4f}".format(loss))
-           
-        grads = tape.gradient(loss, model.get_variables())
-        optimizer.apply_gradients(zip(grads, model.get_variables()))
+
+            model.save()
 
     return model
 
@@ -155,12 +156,17 @@ def main():
 
     parser = argparse.ArgumentParser(description="plot the state of an RNN "
                                      "during prediction")
-    parser.add_argument("--num", help="Number of training iterations",
-                        type=int, default=200)
+    parser.add_argument("--train", help="Number of training iterations",
+                        type=int, default=0)
     args = parser.parse_args()
 
-    model = models.LSTMWithDense()
-    model = training_loop(model, args.num)
+    model = models.StackedLSTMWithDense()
+
+    if args.train > 0:
+        # model = models.LSTMWithDense()
+        model = training_loop(model, args.train)
+    else:
+        model.restore()
 
     print("Generating a sentence using the trained LSTM")
     print(generate(model))
@@ -170,12 +176,13 @@ def main():
 
     x, y = next(test_iterator)
     print(x.shape)
-    _, states = predict(model, x, y, return_state=True)
+    loss, states = predict(model, x, y, return_state=True, accuracy=True)
+    print("Test accuracy: {:.4f}".format(loss))
 
     # ipdb.set_trace()
 
-    hidden_states = np.vstack([state[0] for state in states])
-    current_states = np.vstack([state[1] for state in states])
+    hidden_states = np.vstack([state[0][0] for state in states])
+    current_states = np.vstack([state[0][1] for state in states])
 
     print("Plotting variances for top 20 components")
     pca = PCA(n_components=20)
