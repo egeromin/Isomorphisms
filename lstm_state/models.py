@@ -16,6 +16,9 @@ class RNNLanguageModel:
         self.saver = None
         self.saver_path = "checkpoints/lstm-state-ckpt"
 
+    def set_saver_path(self, saver_path):
+        self.saver_path = saver_path
+
     def _zero_state(self, batch_size):
         raise NotImplementedError
 
@@ -49,10 +52,14 @@ class RNNLanguageModel:
         self.should_save_state = False
         return saved_states
 
-    def save(self):
+    def save(self, itn=None):
         if self.saver is None:
             self.saver = tfe.Saver(self.get_variables())
-        self.saver.save(self.saver_path)
+
+        saver_path = self.saver_path
+        if itn is not None:
+            saver_path += "_{}".format(str(itn).zfill(4))
+        self.saver.save(saver_path)
 
     def restore(self):
         if self.saver is None:

@@ -120,13 +120,13 @@ def training_loop(model, num_iterations=8000):
         grads = tape.gradient(loss, model.get_variables())
         optimizer.apply_gradients(zip(grads, model.get_variables()))
 
-        if i % 25 == 0:
+        if i % 200 == 0:
             xval, yval = next(val_iterator)
             val_loss, _ = predict(model, xval, yval, accuracy=True)
             print("Validation accuracy: {:.4f}".format(val_loss))
             print("Current loss: {:.4f}".format(loss))
 
-            model.save()
+            model.save(itn=i)
 
     return model
 
