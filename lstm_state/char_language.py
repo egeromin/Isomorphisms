@@ -8,6 +8,7 @@ import numpy as np
 import tensorflow.contrib.eager as tfe
 import matplotlib.pyplot as plt
 import argparse
+import sys
 
 from sklearn.decomposition import PCA
 
@@ -165,6 +166,7 @@ def main():
     if args.train > 0:
         # model = models.LSTMWithDense()
         model = training_loop(model, args.train)
+        sys.exit(0)
     else:
         model.restore()
 
