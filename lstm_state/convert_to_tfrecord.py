@@ -5,6 +5,8 @@ import argparse
 import tensorflow as tf
 import re
 from unidecode import unidecode
+
+import ipdb
 # used for converting to ascii
 
 
@@ -98,14 +100,20 @@ def to_tfrecord(stage='train', limit=None, path_tfrecord=None,
 
         while len(buf.data) > 0:
 
-            write_single_record(tfrecord, buf.data)
+            data_to_write = buf.data
             buf.refresh()
+            data_to_write += buf.data
+            buf.refresh()
+
+            for i in range(9):
+                # ipdb.set_trace()
+                write_single_record(tfrecord, data_to_write[i*4:i*4+33])
 
             # the rest is just for displaying progress
             approximate_bytes_processed += config.seq_length
             if approximate_bytes_processed % 10000 == 0:
                 print("Processed about {:.2f}%".format(
-                    approximate_bytes_processed / num_bytes))
+                    100 * approximate_bytes_processed / num_bytes))
 
 
 def main():
